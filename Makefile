@@ -37,19 +37,19 @@ format: ## Format Phel source files
 	$(PHEL) format
 
 list: ## List all todos
-	$(PHEL) run src/phel/main.phel list
+	$(PHEL) run src/main.phel list
 
 add: ## Add a todo: make add TEXT="Buy groceries"
-	$(PHEL) run src/phel/main.phel add $(TEXT)
+	$(PHEL) run src/main.phel add $(TEXT)
 
 done: ## Toggle todo done/undone: make done ID=1
-	$(PHEL) run src/phel/main.phel done $(ID)
+	$(PHEL) run src/main.phel done $(ID)
 
 remove: ## Remove a todo: make remove ID=1
-	$(PHEL) run src/phel/main.phel remove $(ID)
+	$(PHEL) run src/main.phel remove $(ID)
 
 clear: ## Clear all completed todos
-	$(PHEL) run src/phel/main.phel clear
+	$(PHEL) run src/main.phel clear
 
 debug: ## Pretty-print raw todo data
-	$(PHEL) run src/phel/main.phel debug
+	$(PHEL) run src/main.phel debug
