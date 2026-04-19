@@ -1,0 +1,47 @@
+(ns mytodo\main-test
+  (:require phel\test :refer [deftest is])
+  (:require mytodo\main :refer [add-todo toggle-todo remove-todo find-todo next-id]))
+
+(deftest test-next-id-empty
+  (is (= 1 (next-id []))))
+
+(deftest test-next-id-with-items
+  (is (= 3 (next-id [{:id 1 :text "A" :done false}
+                      {:id 2 :text "B" :done false}]))))
+
+(deftest test-add-todo
+  (let [todos (add-todo [] "Buy milk")]
+    (is (= 1 (count todos)))
+    (is (= "Buy milk" (get (first todos) :text)))
+    (is (= false (get (first todos) :done)))))
+
+(deftest test-add-multiple-todos
+  (let [todos (-> []
+                  (add-todo "First")
+                  (add-todo "Second"))]
+    (is (= 2 (count todos)))
+    (is (= 1 (get (first todos) :id)))
+    (is (= 2 (get (second todos) :id)))))
+
+(deftest test-toggle-todo
+  (let [todos   [{:id 1 :text "Task" :done false}]
+        toggled (vec (toggle-todo todos 1))]
+    (is (= true (get (first toggled) :done)))))
+
+(deftest test-toggle-twice-restores
+  (let [todos   [{:id 1 :text "Task" :done false}]
+        toggled (vec (toggle-todo (vec (toggle-todo todos 1)) 1))]
+    (is (= false (get (first toggled) :done)))))
+
+(deftest test-remove-todo
+  (let [todos   [{:id 1 :text "A" :done false}
+                 {:id 2 :text "B" :done false}]
+        result  (remove-todo todos 1)]
+    (is (= 1 (count result)))
+    (is (= 2 (get (first result) :id)))))
+
+(deftest test-find-todo
+  (let [todos [{:id 1 :text "A" :done false}
+               {:id 2 :text "B" :done true}]]
+    (is (= "B" (get (find-todo todos 2) :text)))
+    (is (nil? (find-todo todos 99)))))
