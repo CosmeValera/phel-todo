@@ -1,10 +1,31 @@
 (ns mytodo\main
-  (:require phel\json :as json))
+  (:require phel\json :as json)
+  (:require phel\string :as string)
+  (:require phel\pprint :refer [pprint pprint-str]))
 
 # ------------------------------------------------------------------
 # Phel Todo CLI App
-# A simple command-line task manager built with Phel
+# A functional task manager showcasing Phel's latest features
 # ------------------------------------------------------------------
+
+# --- Todo record ---------------------------------------------------
+
+(defrecord Todo [id text done])
+
+# --- Display protocol ----------------------------------------------
+
+(defprotocol Displayable
+  (display [this]))
+
+(extend-type Todo
+  Displayable
+  (display [this]
+    (let [icon (if (get this :done) "[x]" "[ ]")]
+      (format "  %s #%d  %s" icon (get this :id) (get this :text)))))
+
+# --- Command dispatch via multimethods -----------------------------
+
+(defmulti run-command (fn [cmd _args _todos] cmd))
 
 # --- Storage helpers -----------------------------------------------
 
@@ -16,41 +37,39 @@
     (let [content (slurp data-file)]
       (if (empty? content)
         []
-        (json/decode content)))
+        (let [raw (json/decode content)]
+          (into [] (map (fn [t] (->Todo (get t :id) (get t :text) (get t :done)))) raw))))
     []))
 
 (defn save-todos [todos]
-  "Persist todos to JSON file."
-  (spit data-file (json/encode todos)))
+  "Persist todos vector to JSON file."
+  (spit data-file (json/encode (into [] (map (fn [t] {:id (get t :id) :text (get t :text) :done (get t :done)})) todos))))
 
 # --- ID generation -------------------------------------------------
 
 (defn next-id [todos]
-  "Find the next available id."
+  "Find the next available id using transduce."
   (if (empty? todos)
     1
-    (+ 1 (reduce (fn [mx t] (max mx (get t :id))) 0 todos))))
+    (+ 1 (transduce (map (fn [t] (get t :id))) (fn [a b] (max a b)) 0 todos))))
 
 # --- Core operations -----------------------------------------------
 
 (defn add-todo [todos text]
-  "Add a new todo item."
-  (let [todo {:id (next-id todos)
-              :text text
-              :done false}]
-    (push todos todo)))
+  "Add a new todo item using the record constructor."
+  (conj todos (->Todo (next-id todos) text false)))
 
 (defn toggle-todo [todos id]
   "Toggle the done status of a todo by id."
-  (map (fn [t]
-         (if (= (get t :id) id)
-           (assoc t :done (not (get t :done)))
-           t))
-       todos))
+  (into [] (map (fn [t]
+                  (if (= (get t :id) id)
+                    (->Todo (get t :id) (get t :text) (not (get t :done)))
+                    t)))
+        todos))
 
 (defn remove-todo [todos id]
-  "Remove a todo by id."
-  (vec (filter (fn [t] (not= (get t :id) id)) todos)))
+  "Remove a todo by id using transducer filter."
+  (into [] (filter (fn [t] (not= (get t :id) id))) todos))
 
 (defn find-todo [todos id]
   "Find a single todo by id."
@@ -58,36 +77,74 @@
 
 # --- Display -------------------------------------------------------
 
-(defn status-icon [done]
-  (if done "[x]" "[ ]"))
-
-(defn print-todo [t]
-  (println (format "  %s #%d  %s"
-                   (status-icon (get t :done))
-                   (get t :id)
-                   (get t :text))))
-
 (defn print-todos [todos]
   (if (empty? todos)
     (println "  No todos yet. Add one with: add <text>")
     (do
       (println "")
-      (for [t :in todos]
-        (print-todo t))
+      (doseq [t :in todos]
+        (println (display t)))
       (let [total  (count todos)
-            done   (count (filter (fn [t] (get t :done)) todos))
+            done   (count (into [] (filter (fn [t] (get t :done))) todos))
             remain (- total done)]
         (println (format "\n  %d total, %d done, %d remaining" total done remain))))))
 
-# --- CLI parsing ----------------------------------------------------
+# --- Validation with regex -----------------------------------------
 
-(defn parse-command [args]
-  "Parse command-line arguments into [command & rest]."
+(defn valid-id? [s]
+  "Check if string is a valid positive integer id using regex."
+  (some? (re-find #"^\d+$" s)))
+
+# --- Command implementations via defmethod -------------------------
+
+(defmethod run-command "list" [_ _args todos]
+  (print-todos todos))
+
+(defmethod run-command "add" [_ args todos]
   (if (empty? args)
-    ["help" []]
-    [(first args) (rest args)]))
+    (println "  Error: Please provide a todo text. Example: add Buy groceries")
+    (let [text      (php/implode " " (to-php-array args))
+          new-todos (add-todo todos text)]
+      (save-todos new-todos)
+      (println (format "  Added: \"%s\"" text)))))
 
-(defn print-help []
+(defmethod run-command "done" [_ args todos]
+  (if (or (empty? args) (not (valid-id? (first args))))
+    (println "  Error: Please provide a valid todo id. Example: done 1")
+    (let [id (php/intval (first args))]
+      (if (find-todo todos id)
+        (let [new-todos (toggle-todo todos id)
+              t         (find-todo new-todos id)]
+          (save-todos new-todos)
+          (println (format "  Toggled #%d: \"%s\" [%s]"
+                           id
+                           (get t :text)
+                           (if (get t :done) "done" "undone"))))
+        (println (format "  Error: Todo #%d not found." id))))))
+
+(defmethod run-command "remove" [_ args todos]
+  (if (or (empty? args) (not (valid-id? (first args))))
+    (println "  Error: Please provide a valid todo id. Example: remove 1")
+    (let [id (php/intval (first args))]
+      (if (find-todo todos id)
+        (let [t         (find-todo todos id)
+              new-todos (remove-todo todos id)]
+          (save-todos new-todos)
+          (println (format "  Removed #%d: \"%s\"" id (get t :text))))
+        (println (format "  Error: Todo #%d not found." id))))))
+
+(defmethod run-command "clear" [_ _args todos]
+  (let [new-todos (into [] (filter (fn [t] (not (get t :done)))) todos)
+        cleared   (- (count todos) (count new-todos))]
+    (save-todos new-todos)
+    (println (format "  Cleared %d completed todo(s)." cleared))))
+
+(defmethod run-command "debug" [_ _args todos]
+  (println "\n  Raw todo data:")
+  (pprint todos)
+  (println ""))
+
+(defmethod run-command :default [cmd _args _todos]
   (println "")
   (println "  Phel Todo - A functional task manager")
   (println "  ======================================")
@@ -98,60 +155,18 @@
   (println "    phel run src/phel/main.phel done <id>      - Toggle todo done/undone")
   (println "    phel run src/phel/main.phel remove <id>    - Remove a todo")
   (println "    phel run src/phel/main.phel clear          - Remove all completed todos")
+  (println "    phel run src/phel/main.phel debug          - Debug: pretty-print raw data")
   (println "    phel run src/phel/main.phel help           - Show this help")
   (println ""))
 
 # --- Main entry point -----------------------------------------------
 
 (defn main []
-  (let [argv    (php/aget php/$GLOBALS "argv")
-        args    (vec (or (php/array_slice argv 3) []))
-        [cmd rest-args] (parse-command args)
-        todos   (load-todos)]
-    (cond
-      (= cmd "list")
-        (print-todos todos)
-
-      (= cmd "add")
-        (if (empty? rest-args)
-          (println "  Error: Please provide a todo text. Example: add Buy groceries")
-          (let [text      (php/implode " " (to-php-array rest-args))
-                new-todos (add-todo todos text)]
-            (save-todos new-todos)
-            (println (format "  Added: \"%s\"" text))))
-
-      (= cmd "done")
-        (if (empty? rest-args)
-          (println "  Error: Please provide a todo id. Example: done 1")
-          (let [id (php/intval (first rest-args))]
-            (if (find-todo todos id)
-              (let [new-todos (vec (toggle-todo todos id))]
-                (save-todos new-todos)
-                (let [t (find-todo new-todos id)]
-                  (println (format "  Toggled #%d: \"%s\" [%s]"
-                                   id
-                                   (get t :text)
-                                   (if (get t :done) "done" "undone")))))
-              (println (format "  Error: Todo #%d not found." id)))))
-
-      (= cmd "remove")
-        (if (empty? rest-args)
-          (println "  Error: Please provide a todo id. Example: remove 1")
-          (let [id (php/intval (first rest-args))]
-            (if (find-todo todos id)
-              (let [t         (find-todo todos id)
-                    new-todos (remove-todo todos id)]
-                (save-todos new-todos)
-                (println (format "  Removed #%d: \"%s\"" id (get t :text))))
-              (println (format "  Error: Todo #%d not found." id)))))
-
-      (= cmd "clear")
-        (let [new-todos (vec (filter (fn [t] (not (get t :done))) todos))
-              cleared   (- (count todos) (count new-todos))]
-          (save-todos new-todos)
-          (println (format "  Cleared %d completed todo(s)." cleared)))
-
-      :else
-        (print-help))))
+  (let [argv (php/aget php/$GLOBALS "argv")
+        args (vec (or (php/array_slice argv 3) []))
+        cmd  (or (first args) "help")
+        rest-args (vec (rest args))
+        todos (load-todos)]
+    (run-command cmd rest-args todos)))
 
 (main)

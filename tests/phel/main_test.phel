@@ -1,13 +1,36 @@
 (ns mytodo\main-test
   (:require phel\test :refer [deftest is])
-  (:require mytodo\main :refer [add-todo toggle-todo remove-todo find-todo next-id]))
+  (:require mytodo\main :refer [->Todo add-todo toggle-todo remove-todo
+                                find-todo next-id valid-id? display]))
+
+# --- Record constructor tests ---------------------------------------
+
+(deftest test-record-constructor
+  (let [t (->Todo 1 "Test" false)]
+    (is (= 1 (get t :id)))
+    (is (= "Test" (get t :text)))
+    (is (= false (get t :done)))))
+
+# --- Display protocol tests ----------------------------------------
+
+(deftest test-display-undone
+  (let [t (->Todo 1 "Buy milk" false)]
+    (is (= "  [ ] #1  Buy milk" (display t)))))
+
+(deftest test-display-done
+  (let [t (->Todo 1 "Buy milk" true)]
+    (is (= "  [x] #1  Buy milk" (display t)))))
+
+# --- ID generation tests -------------------------------------------
 
 (deftest test-next-id-empty
   (is (= 1 (next-id []))))
 
 (deftest test-next-id-with-items
-  (is (= 3 (next-id [{:id 1 :text "A" :done false}
-                      {:id 2 :text "B" :done false}]))))
+  (is (= 3 (next-id [(->Todo 1 "A" false)
+                      (->Todo 2 "B" false)]))))
+
+# --- Core operation tests ------------------------------------------
 
 (deftest test-add-todo
   (let [todos (add-todo [] "Buy milk")]
@@ -24,24 +47,35 @@
     (is (= 2 (get (second todos) :id)))))
 
 (deftest test-toggle-todo
-  (let [todos   [{:id 1 :text "Task" :done false}]
-        toggled (vec (toggle-todo todos 1))]
+  (let [todos   [(->Todo 1 "Task" false)]
+        toggled (toggle-todo todos 1)]
     (is (= true (get (first toggled) :done)))))
 
 (deftest test-toggle-twice-restores
-  (let [todos   [{:id 1 :text "Task" :done false}]
-        toggled (vec (toggle-todo (vec (toggle-todo todos 1)) 1))]
+  (let [todos   [(->Todo 1 "Task" false)]
+        toggled (toggle-todo (toggle-todo todos 1) 1)]
     (is (= false (get (first toggled) :done)))))
 
 (deftest test-remove-todo
-  (let [todos   [{:id 1 :text "A" :done false}
-                 {:id 2 :text "B" :done false}]
-        result  (remove-todo todos 1)]
+  (let [todos  [(->Todo 1 "A" false) (->Todo 2 "B" false)]
+        result (remove-todo todos 1)]
     (is (= 1 (count result)))
     (is (= 2 (get (first result) :id)))))
 
 (deftest test-find-todo
-  (let [todos [{:id 1 :text "A" :done false}
-               {:id 2 :text "B" :done true}]]
+  (let [todos [(->Todo 1 "A" false) (->Todo 2 "B" true)]]
     (is (= "B" (get (find-todo todos 2) :text)))
     (is (nil? (find-todo todos 99)))))
+
+# --- Regex validation tests ----------------------------------------
+
+(deftest test-valid-id
+  (is (= true (valid-id? "1")))
+  (is (= true (valid-id? "42")))
+  (is (= true (valid-id? "100"))))
+
+(deftest test-invalid-id
+  (is (= false (valid-id? "abc")))
+  (is (= false (valid-id? "")))
+  (is (= false (valid-id? "1.5")))
+  (is (= false (valid-id? "-1"))))
