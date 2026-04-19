@@ -60,6 +60,11 @@ Notes from building a CLI todo app with Phel `dev-main` (post v0.33.0), from the
 - For iterative development this is the biggest friction point.
 - **Suggestion**: `phel watch` or incremental compilation would transform the dev experience.
 
+### 8. Consider a `phel new` or `phel create` command with Makefile/Dockerfile
+- Setting up the Docker-based dev environment required manual work: finding the right PHP image, writing long `docker run` commands, creating a Makefile.
+- A `phel new my-app --docker` scaffold that generates a Makefile and Dockerfile would dramatically lower the barrier to entry for new users without PHP installed locally.
+- The Makefile pattern (`make add TEXT="..."`, `make test`, etc.) is much more approachable than raw `docker run` commands.
+
 ## Overall impression
 
 The new features (records, protocols, multimethods, transducers, regex) make Phel feel like a serious functional language, not just "Lisp syntax for PHP". The progression from v0.30 to main has been impressive — each release adds meaningful, well-designed features. The main areas for improvement are documentation of new features and compilation speed.

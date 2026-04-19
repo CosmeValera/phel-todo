@@ -2,34 +2,48 @@
 
 A simple command-line task manager built with [Phel](https://phel-lang.org/) — a functional programming language that compiles to PHP.
 
+Built using Phel `dev-main` to exercise the latest features: `defrecord`, `defprotocol`, `defmulti`/`defmethod`, transducers, regex literals, and `pprint`.
+
 ## Requirements
 
-- PHP 8.4+ and Composer, or
-- Docker (via WSL on Windows)
+- Docker (via WSL on Windows, or native on Linux/Mac)
+- `make` (optional, but recommended)
 
 ## Setup
 
 ```bash
-composer install
+make install
 ```
 
 ## Usage
 
 ```bash
-vendor/bin/phel run src/phel/main.phel help              # Show help
-vendor/bin/phel run src/phel/main.phel add Buy groceries  # Add a todo
-vendor/bin/phel run src/phel/main.phel list               # List all todos
-vendor/bin/phel run src/phel/main.phel done 1             # Toggle done/undone
-vendor/bin/phel run src/phel/main.phel remove 1           # Remove a todo
-vendor/bin/phel run src/phel/main.phel clear              # Remove completed todos
+make help                       # Show all commands
+make add TEXT="Buy groceries"   # Add a todo
+make list                       # List all todos
+make done ID=1                  # Toggle done/undone
+make remove ID=1                # Remove a todo
+make clear                      # Remove completed todos
+make debug                      # Pretty-print raw data
 ```
 
-## Tests
+## Development
 
 ```bash
-vendor/bin/phel test
+make test    # Run tests (26 tests)
+make repl    # Start Phel REPL
+make format  # Format source files
 ```
+
+## TODO App working
+**TODO app:**
+
+![src](img/src.png)
+
+**Tests:**
+
+![tests](img/tests.png)
 
 ## DX Feedback
 
-This app was built as an exercise to evaluate the Phel developer experience. See [FEEDBACK.md](FEEDBACK.md) for notes.
+This app was built as an exercise to evaluate the Phel developer experience. See [FEEDBACK.md](FEEDBACK.md) for detailed notes.
